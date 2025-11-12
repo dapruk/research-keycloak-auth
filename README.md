@@ -1,98 +1,128 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🔐 Keycloak Auth Proof of Concept (NestJS + Prisma)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A backend proof-of-concept demonstrating how to integrate **Keycloak authentication** with a **NestJS** backend and **Prisma** database.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+This project covers:
 
-## Description
+- Registering users in Keycloak via Admin API  
+- Secure login using the **Password Grant Flow**  
+- Cookie-based session management in NestJS  
+- Syncing user profiles with your business database  
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 🧩 Tech Stack
 
-```bash
-$ pnpm install
-```
+| Layer | Description |
+|--------|-------------|
+| **Auth Provider** | [Keycloak](https://www.keycloak.org/) – OAuth2 / OpenID Connect |
+| **Backend** | [NestJS](https://nestjs.com/) |
+| **ORM** | [Prisma](https://www.prisma.io/) |
+| **Database** | SQLite (default) — easily switchable to PostgreSQL/MySQL |
+| **Package Manager** | pnpm |
+| **Runtime** | Node.js (v18+) |
 
-## Compile and run the project
+---
+
+## 🚀 Getting Started
+
+### 1. Clone and Install
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+git clone https://github.com/your-org/keycloak-auth-poc.git
+cd keycloak-auth-poc
+pnpm install
 ```
 
-## Run tests
+---
+
+### 2. Environment Setup
+
+Copy `.env.example` → `.env`, then fill in:
+
+```env
+# Server
+PORT=3000
+
+# Database
+DATABASE_URL="file:./dev.db"
+
+# Cookie / Session
+SESSION_COOKIE_NAME=app_sess
+SESSION_COOKIE_SECRET=dev-secret-change-me
+
+# Keycloak
+KC_BASE_URL=http://localhost:8080
+KC_REALM=myrealm
+
+# Client for password grant
+KC_CLIENT_ID=my-confidential-bff
+KC_CLIENT_SECRET=CHANGE_ME
+
+# Admin client (service account)
+KC_ADMIN_CLIENT_ID=admin-cli
+KC_ADMIN_CLIENT_SECRET=CHANGE_ME
+```
+
+> 💡 The admin client’s **service account** must have realm-management roles:  
+> `manage-users`, `view-users`, and optionally `impersonation`.
+
+---
+
+### 3. Database Setup
+
+Run the initial migration and seed demo data:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm prisma migrate dev -n init
+pnpm prisma db seed
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Inspect data via Prisma Studio:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm prisma studio
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+### 4. Run the Server
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+pnpm start:dev
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Expected output:
 
-## Support
+```
+🚀 Server running on http://localhost:3000
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+---
 
-## Stay in touch
+## 🔑 Keycloak Setup
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+1. Start Keycloak locally (example using Docker):
 
-## License
+   ```bash
+   docker run -d \
+     -p 8080:8080 \
+     -e KEYCLOAK_ADMIN=admin \
+     -e KEYCLOAK_ADMIN_PASSWORD=admin \
+     quay.io/keycloak/keycloak:26.0 start-dev
+   ```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+2. Create a new **realm** (e.g. `myrealm`).
+
+3. Create clients:
+
+   - **Client 1:** `my-confidential-bff`  
+     - Access Type: Confidential  
+     - Enable “Direct Access Grants” ✅  
+     - Copy the *Client Secret*
+   - **Client 2:** `admin-cli` (service account enabled)  
+     - Add realm role: `manage-users`
+
+4. Fill `.env` with the correct values.
+
+---
