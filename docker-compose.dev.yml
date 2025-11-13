@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: nest-api-dev
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    ports:
+      - '3000:3000'
+
+    volumes:
+      - ./src:/app/src
+
+      - ./prisma:/app/prisma
+
+    depends_on:
+      - keycloak
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.4
+    container_name: keycloak-dev
+    command: ['start-dev']
+    restart: unless-stopped
+
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+
+    ports:
+      - '8080:8080'
+
+    volumes:
+      - keycloak_data_dev:/opt/keycloak/data
+
+volumes:
+  keycloak_data_dev:
