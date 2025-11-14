@@ -1,128 +1,294 @@
-# 🔐 Keycloak Auth Proof of Concept (NestJS + Prisma)
+# 🔐 Keycloak Auth Proof of Concept (NestJS + Prisma + Keycloak Authorization)
 
-A backend proof-of-concept demonstrating how to integrate **Keycloak authentication** with a **NestJS** backend and **Prisma** database.
+This project is a **complete authentication + authorization POC** showing how to integrate:
 
-This project covers:
+- Keycloak (Auth + Authorization Services)
+- NestJS (API)
+- Prisma (ORM)
+- Cookie-based authentication
+- Scope-based permissions (internal vs external)
+- User registration + login flows
+- Realm import/export for easy setup
 
-- Registering users in Keycloak via Admin API  
-- Secure login using the **Password Grant Flow**  
-- Cookie-based session management in NestJS  
-- Syncing user profiles with your business database  
+The repository includes a working example of **invoice APIs** with two access levels:
+
+- Internal invoice view → requires internal admin policies  
+- External invoice view → requires client admin policies  
 
 ---
 
 ## 🧩 Tech Stack
 
 | Layer | Description |
-|--------|-------------|
-| **Auth Provider** | [Keycloak](https://www.keycloak.org/) – OAuth2 / OpenID Connect |
-| **Backend** | [NestJS](https://nestjs.com/) |
-| **ORM** | [Prisma](https://www.prisma.io/) |
-| **Database** | SQLite (default) — easily switchable to PostgreSQL/MySQL |
-| **Package Manager** | pnpm |
-| **Runtime** | Node.js (v18+) |
+|-------|-------------|
+| Auth Provider | Keycloak 26.x |
+| Backend | NestJS |
+| ORM | Prisma |
+| Database | SQLite (default) |
+| Package Manager | pnpm |
+| Runtime | Node.js v18+ |
+| Infra | Docker Compose |
 
 ---
 
-## 🚀 Getting Started
+## 📁 Project Structure
 
-### 1. Clone and Install
-
-```bash
-git clone https://github.com/your-org/keycloak-auth-poc.git
-cd keycloak-auth-poc
-pnpm install
+```
+keycloak-auth/
+├─ docker-compose.dev.yml
+├─ Dockerfile.dev
+├─ prisma/
+│  └─ schema.prisma
+├─ keycloak/
+│  └─ realm-export.json        # Imported automatically on first startup
+├─ src/
+│  ├─ auth/
+│  ├─ invoice/
+│  ├─ prisma.service.ts
+│  ├─ app.module.ts
+│  └─ main.ts
+└─ .env.example
 ```
 
 ---
 
-### 2. Environment Setup
+# 🚀 Getting Started
 
-Copy `.env.example` → `.env`, then fill in:
+## 1. Requirements
 
-```env
-# Server
+- Docker & Docker Compose
+- pnpm (only required if running API manually without Docker)
+- Node.js v18+
+
+---
+
+## 2. Environment Setup
+
+Create a `.env` file:
+
+```
+cp .env.example .env
+```
+
+Edit `.env` and set your values:
+
+```
 PORT=3000
 
-# Database
 DATABASE_URL="file:./dev.db"
 
-# Cookie / Session
 SESSION_COOKIE_NAME=app_sess
 SESSION_COOKIE_SECRET=dev-secret-change-me
 
-# Keycloak
-KC_BASE_URL=http://localhost:8080
-KC_REALM=myrealm
+KC_BASE_URL=http://keycloak-dev:8080
+KC_REALM=ghm-app
 
-# Client for password grant
-KC_CLIENT_ID=my-confidential-bff
+KC_CLIENT_ID=ghm-app
 KC_CLIENT_SECRET=CHANGE_ME
 
-# Admin client (service account)
-KC_ADMIN_CLIENT_ID=admin-cli
+KC_ADMIN_CLIENT_ID=ghm-app-admin
 KC_ADMIN_CLIENT_SECRET=CHANGE_ME
+
+KC_BOOTSTRAP_ADMIN_USERNAME=admin
+KC_BOOTSTRAP_ADMIN_PASSWORD=admin
 ```
 
-> 💡 The admin client’s **service account** must have realm-management roles:  
-> `manage-users`, `view-users`, and optionally `impersonation`.
+### Important Notes
+
+- Everything related to Keycloak (realm, clients, roles, groups, scopes, permissions, policies) is stored inside:
+  ```
+  keycloak/realm-export.json
+  ```
+- This file is **auto-imported** into Keycloak on the first run.
 
 ---
 
-### 3. Database Setup
+## 3. Start the Stack
 
-Run the initial migration and seed demo data:
+Run both Keycloak + API:
 
-```bash
-pnpm prisma migrate dev -n init
-pnpm prisma db seed
+```
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-Inspect data via Prisma Studio:
+This will run:
 
-```bash
-pnpm prisma studio
+- Keycloak → http://localhost:8080  
+- NestJS API → http://localhost:3000  
+- Auto-import the realm from `keycloak/realm-export.json`
+
+Check logs:
+
+```
+docker logs -f keycloak-dev
+```
+
+If you see **"Script upload is disabled"**, it means the realm was imported successfully and Keycloak restarted.
+
+---
+
+## 4. Initialize Database
+
+Run migrations and seeds inside the API container:
+
+```
+docker exec -it nest-api-dev pnpm prisma migrate dev -n init
+docker exec -it nest-api-dev pnpm prisma db seed
+```
+
+The seed includes:
+
+- A demo company  
+  `d23f7b33-f02f-4b7d-9f9c-8218d717f987`
+- Test invoices
+- No default users (they are created via API registration)
+
+---
+
+# 👤 Authentication Flow
+
+This project uses **session cookies** + curl.
+
+## 5. Register an Internal Admin User
+
+```
+curl -i -c admin.cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email":"admin1@example.com",
+    "password":"P@ssw0rd!",
+    "username":"admin1",
+    "firstName":"Admin",
+    "lastName":"One",
+    "actorType":"internal",
+    "internalRole":"ADMIN",
+    "name":"Admin One",
+    "phone":"628111111111"
+  }' \
+  http://localhost:3000/auth/register
+```
+
+This registers a Keycloak user and assigns the correct **internal admin** role + group.
+
+---
+
+## 6. Access the Internal Invoice View
+
+```
+curl -i -b admin.cookies.txt \
+  "http://localhost:3000/invoice/internal/view-table"
+```
+
+If policies are correct, this returns invoice data.
+
+If Keycloak denies access, you'll see:
+
+```
+KeycloakAuthorizationError: Unauthorized
 ```
 
 ---
 
-### 4. Run the Server
-
-```bash
-pnpm start:dev
-```
-
-Expected output:
+## 7. Register a Client Admin User
 
 ```
-🚀 Server running on http://localhost:3000
+curl -i -c client.cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email":"client99@example.com",
+    "password":"P@ssw0rd!",
+    "username":"client99",
+    "firstName":"Client",
+    "lastName":"NinetyNine",
+    "actorType":"external",
+    "companyId":"d23f7b33-f02f-4b7d-9f9c-8218d717f987",
+    "name":"Client Admin 99",
+    "phone":"628111111199",
+    "externalRole":"ADMIN"
+  }' \
+  http://localhost:3000/auth/register
 ```
 
 ---
 
-## 🔑 Keycloak Setup
+## 8. Access the External Invoice View
 
-1. Start Keycloak locally (example using Docker):
+```
+curl -i -b client.cookies.txt \
+  "http://localhost:3000/invoice/external/view-table"
+```
 
-   ```bash
-   docker run -d \
-     -p 8080:8080 \
-     -e KEYCLOAK_ADMIN=admin \
-     -e KEYCLOAK_ADMIN_PASSWORD=admin \
-     quay.io/keycloak/keycloak:26.0 start-dev
-   ```
+Only users with:
 
-2. Create a new **realm** (e.g. `myrealm`).
+- The correct group  
+- External admin role  
+- `view-external` scope permission  
 
-3. Create clients:
+…can pass.
 
-   - **Client 1:** `my-confidential-bff`  
-     - Access Type: Confidential  
-     - Enable “Direct Access Grants” ✅  
-     - Copy the *Client Secret*
-   - **Client 2:** `admin-cli` (service account enabled)  
-     - Add realm role: `manage-users`
+---
 
-4. Fill `.env` with the correct values.
+# 🧩 Keycloak Authorization Model (Summary)
+
+The realm export contains:
+
+### Resources
+- `invoice-api`
+
+### Scopes
+- `view` (internal)
+- `view-external` (external)
+
+### Policies
+- `admin-role-policy`
+- `internal-view-policy`
+- `external-view-policy`
+- `internal-admin-view-policy`
+- `admin-external-view-policy`
+
+### Permissions
+- `internal-view-permission`
+- `external-view-permission`
+
+Each endpoint in NestJS checks:
+
+```
+@Permissions({
+  resource: 'invoice-api',
+  scope: 'view' | 'view-external',
+})
+```
+
+---
+
+# 🔄 How Realm Import Works
+
+- On **first startup**, Keycloak imports:
+  ```
+  /opt/keycloak/data/import/realm-export.json
+  ```
+- After import, it disables further script uploads.
+- To reset Keycloak and re-import:
+  ```
+  docker compose down -v
+  ```
+  (removes volumes)
+- Then start again:
+  ```
+  docker compose up -d
+  ```
+
+This ensures teammates can start the stack immediately without manual configuration.
+
+---
+
+# 🧹 Reset Everything
+
+If you want a clean environment:
+
+```
+docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.dev.yml up -d --build
+```
 
 ---
