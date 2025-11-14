@@ -69,7 +69,6 @@ export class AuthService {
     return json.access_token;
   }
 
-  /** Password grant for user-facing login */
   private async loginWithPassword(params: {
     identifier: string;
     password: string;
@@ -135,6 +134,56 @@ export class AuthService {
     TokenStore.delete(sid);
   }
 
+  private async addUserToGroupByName(
+    adminToken: string,
+    userId: string,
+    groupName: string,
+  ) {
+    const baseUrl = this.cfg.get<string>('KC_BASE_URL')!.replace(/\/$/, '');
+    const realm = this.cfg.get<string>('KC_REALM')!;
+
+    const groupsUrl = `${baseUrl}/admin/realms/${realm}/groups?search=${encodeURIComponent(
+      groupName,
+    )}`;
+
+    const groupsRes = await fetch(groupsUrl, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+    });
+
+    if (!groupsRes.ok) {
+      const msg = await groupsRes.text().catch(() => '');
+      throw new BadRequestException(
+        `Fetch groups failed: ${msg || groupsRes.statusText}`,
+      );
+    }
+
+    const groups = (await groupsRes.json()) as { id: string; name: string }[];
+    const match = groups.find((g) => g.name === groupName);
+
+    if (!match) {
+      throw new BadRequestException(`Group not found: ${groupName}`);
+    }
+
+    const groupId = match.id;
+
+    const addUrl = `${baseUrl}/admin/realms/${realm}/users/${userId}/groups/${groupId}`;
+    const addRes = await fetch(addUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+    });
+
+    if (!addRes.ok) {
+      const msg = await addRes.text().catch(() => '');
+      throw new BadRequestException(
+        `Add user to group failed: ${msg || addRes.statusText}`,
+      );
+    }
+  }
+
   private async createKeycloakUser(
     adminToken: string,
     params: {
@@ -147,7 +196,9 @@ export class AuthService {
       lastName?: string;
     },
   ): Promise<string> {
-    const adminUrl = `${this.cfg.get('KC_BASE_URL')!.replace(/\/$/, '')}/admin/realms/${this.cfg.get('KC_REALM')}/users`;
+    const adminUrl = `${this.cfg
+      .get('KC_BASE_URL')!
+      .replace(/\/$/, '')}/admin/realms/${this.cfg.get('KC_REALM')}/users`;
 
     const payload: any = {
       username: params.username,
@@ -188,7 +239,12 @@ export class AuthService {
     userId: string,
     password: string,
   ) {
-    const url = `${this.cfg.get('KC_BASE_URL')!.replace(/\/$/, '')}/admin/realms/${this.cfg.get('KC_REALM')}/users/${userId}/reset-password`;
+    const url = `${this.cfg
+      .get('KC_BASE_URL')!
+      .replace(
+        /\/$/,
+        '',
+      )}/admin/realms/${this.cfg.get('KC_REALM')}/users/${userId}/reset-password`;
     const res = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -351,6 +407,10 @@ export class AuthService {
       firstName: input.firstName,
       lastName: input.lastName,
     });
+
+    if (input.actorType === 'internal' || input.actorType === 'client') {
+      await this.addUserToGroupByName(adminToken, userId, input.actorType);
+    }
 
     await this.setKeycloakPassword(adminToken, userId, input.password);
 

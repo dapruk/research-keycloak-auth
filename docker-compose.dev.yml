@@ -23,19 +23,21 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.4.4
     container_name: keycloak-dev
-    command: ['start-dev']
+    command: ['start-dev', '--import-realm']
     restart: unless-stopped
 
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       KC_HTTP_ACCEPT_NON_NORMALIZED_PATHS: 'true'
+      KC_FEATURES: 'scripts'
+      KC_SPI_SCRIPT_UPLOAD_ENABLED: 'true'
 
     ports:
       - '8080:8080'
 
     volumes:
-      - keycloak_data_dev:/opt/keycloak/data
+      - ./keycloak:/opt/keycloak/data/import
 
 volumes:
   keycloak_data_dev:

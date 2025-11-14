@@ -1,23 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  Res,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Body, Controller, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import { PrismaService } from 'src/prisma.service';
 import { AuthService } from './auth.service';
-import { TokenStore } from './token-store';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
-    private readonly prisma: PrismaService,
     private readonly cfg: ConfigService,
   ) {}
 
@@ -106,60 +95,6 @@ export class AuthController {
 
     this.setSessionCookie(res, sid, expiresAt);
     return { ok: true, expiresAt };
-  }
-
-  @Get('me')
-  async me(@Req() req: Request) {
-    const cookieName = this.cfg.get<string>('SESSION_COOKIE_NAME');
-    if (!cookieName) throw new Error('SESSION_COOKIE_NAME is not defined');
-
-    const sid = req.signedCookies?.[cookieName];
-    if (!sid) throw new UnauthorizedException('No session');
-
-    const session = TokenStore.get(sid);
-    if (!session) throw new UnauthorizedException('Invalid session');
-
-    const info = await this.auth.fetchUserInfo(session.accessToken);
-
-    const issuer =
-      this.cfg.get<string>('KC_BASE_URL')!.replace(/\/$/, '') +
-      `/realms/${this.cfg.get('KC_REALM')}`;
-
-    const auth = await this.prisma.auth.upsert({
-      where: { issuer_subject: { issuer, subject: info.sub } },
-      create: {
-        issuer,
-        subject: info.sub,
-        email: info.email ?? undefined,
-        username: info.preferred_username ?? undefined,
-      },
-      update: {
-        email: info.email ?? undefined,
-        username: info.preferred_username ?? undefined,
-      },
-      include: {
-        Admin: true,
-        Technician: true,
-        Clients: true,
-        CompanyOwned: true,
-      },
-    });
-
-    const actorType =
-      auth.Admin || auth.Technician
-        ? 'internal'
-        : (auth.Clients?.length ?? 0) > 0 ||
-            (auth.CompanyOwned?.length ?? 0) > 0
-          ? 'client'
-          : null;
-
-    return {
-      issuer: auth.issuer,
-      subject: auth.subject,
-      email: auth.email,
-      username: auth.username,
-      actor_type: actorType,
-    };
   }
 
   @Post('logout')
